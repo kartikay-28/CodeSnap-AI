@@ -13,6 +13,26 @@ class OCRException(CodeSnapException):
     """OCR processing failed"""
     pass
 
+class ImageProcessingException(CodeSnapException):
+    """Image preprocessing failed"""
+    pass
+
+class TextExtractionException(CodeSnapException):
+    """Text extraction from image failed"""
+    pass
+
+class FileValidationException(CodeSnapException):
+    """File validation failed"""
+    pass
+
+class FileSizeException(FileValidationException):
+    """File size exceeds limit"""
+    pass
+
+class FileTypeException(FileValidationException):
+    """Invalid file type"""
+    pass
+
 class LLMException(CodeSnapException):
     """LLM service error"""
     pass
