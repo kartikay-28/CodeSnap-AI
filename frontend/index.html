@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeSnap AI - Code Analysis from Screenshots</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <span class="emoji">📸</span>
+                <h1>CodeSnap AI</h1>
+            </div>
+            <p class="subtitle">AI-powered code analysis from screenshots</p>
+            <div class="tech-stack">
+                <span class="badge">EasyOCR</span>
+                <span class="badge">Google Gemini</span>
+                <span class="badge">FastAPI</span>
+            </div>
+        </header>
+
+        <div class="upload-section">
+            <div class="upload-box" id="uploadBox">
+                <input type="file" id="fileInput" accept="image/*" hidden>
+                <div class="upload-content">
+                    <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <p class="upload-text">Drop your code screenshot here</p>
+                    <p class="upload-hint">or click to browse</p>
+                    <p class="upload-formats">PNG, JPG, JPEG (max 10MB)</p>
+                </div>
+            </div>
+
+            <div class="preview-section" id="previewSection" style="display: none;">
+                <h3>Preview</h3>
+                <img id="imagePreview" alt="Preview">
+                <div class="button-group">
+                    <button class="btn btn-primary" id="analyzeBtn">
+                        <span>🔍</span> Analyze Code
+                    </button>
+                    <button class="btn btn-secondary" id="clearBtn">Clear</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="loading" id="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p class="loading-text">Analyzing your code...</p>
+            <p class="loading-hint">This may take a few seconds</p>
+        </div>
+
+        <div class="results-section" id="resultsSection" style="display: none;">
+            <div class="results-header">
+                <h2>Analysis Results</h2>
+                <div class="metadata-badges">
+                    <span class="badge" id="languageBadge">Language: Unknown</span>
+                    <span class="badge" id="confidenceBadge">Confidence: 0%</span>
+                </div>
+            </div>
+            
+            <div class="result-card">
+                <div class="card-header">
+                    <span class="icon">📝</span>
+                    <h3>Extracted Code</h3>
+                </div>
+                <pre><code id="extractedCode"></code></pre>
+            </div>
+
+            <div class="result-card">
+                <div class="card-header">
+                    <span class="icon">📖</span>
+                    <h3>Overview</h3>
+                </div>
+                <p id="overview" class="overview-text"></p>
+            </div>
+
+            <div class="result-card">
+                <div class="card-header">
+                    <span class="icon">🔍</span>
+                    <h3>Step-by-Step Explanation</h3>
+                </div>
+                <ol id="stepByStep" class="step-list"></ol>
+            </div>
+
+            <div class="result-card">
+                <div class="card-header">
+                    <span class="icon">⚡</span>
+                    <h3>Complexity Analysis</h3>
+                </div>
+                <div class="complexity-grid">
+                    <div class="complexity-item">
+                        <strong>Time Complexity</strong>
+                        <span id="timeComplexity" class="complexity-value"></span>
+                    </div>
+                    <div class="complexity-item">
+                        <strong>Space Complexity</strong>
+                        <span id="spaceComplexity" class="complexity-value"></span>
+                    </div>
+                </div>
+                <p id="complexityExplanation" class="explanation-text"></p>
+            </div>
+
+            <div class="result-card">
+                <div class="card-header">
+                    <span class="icon">🎯</span>
+                    <h3>Beginner-Friendly Explanation</h3>
+                </div>
+                <p id="beginnerExplanation" class="explanation-text"></p>
+            </div>
+
+            <div class="result-card">
+                <div class="card-header">
+                    <span class="icon">⚠️</span>
+                    <h3>Edge Cases</h3>
+                </div>
+                <ul id="edgeCases" class="info-list"></ul>
+            </div>
+
+            <div class="result-card">
+                <div class="card-header">
+                    <span class="icon">🐛</span>
+                    <h3>Common Mistakes</h3>
+                </div>
+                <ul id="commonMistakes" class="info-list"></ul>
+            </div>
+
+            <div class="result-card stats-card">
+                <div class="card-header">
+                    <span class="icon">📊</span>
+                    <h3>Processing Stats</h3>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">Processing Time</span>
+                        <span class="stat-value" id="processingTime"></span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">OCR Confidence</span>
+                        <span class="stat-value" id="ocrConfidence"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="error-section" id="errorSection" style="display: none;">
+            <div class="error-card">
+                <span class="error-icon">❌</span>
+                <h3>Error</h3>
+                <p id="errorMessage"></p>
+                <button class="btn btn-secondary" id="retryBtn">Try Again</button>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>Powered by <strong>EasyOCR</strong> + <strong>Google Gemini</strong> + <strong>FastAPI</strong></p>
+        <p class="footer-note">Built for learning, designed for production 🚀</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>

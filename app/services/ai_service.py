@@ -22,6 +22,47 @@ class LLMProvider(ABC):
         pass
 
 
+class GeminiProvider(LLMProvider):
+    """Google Gemini provider"""
+    
+    def __init__(self):
+        try:
+            from google import genai
+            import os
+            
+            # Set environment variable for Gemini SDK
+            api_key = settings.GEMINI_API_KEY
+            if api_key:
+                os.environ['GEMINI_API_KEY'] = api_key
+            
+            # The client gets the API key from the environment variable GEMINI_API_KEY
+            self.client = genai.Client()
+            self.model = settings.DEFAULT_MODEL
+        except ImportError:
+            raise LLMException("google-genai library not installed. Run: pip install google-genai")
+        except Exception as e:
+            raise LLMException(f"Gemini initialization failed: {str(e)}")
+    
+    async def generate_response(self, prompt: str, timeout: int = 30) -> str:
+        try:
+            loop = asyncio.get_event_loop()
+            response = await asyncio.wait_for(
+                loop.run_in_executor(
+                    None,
+                    lambda: self.client.models.generate_content(
+                        model=self.model,
+                        contents=prompt
+                    )
+                ),
+                timeout=timeout
+            )
+            return response.text
+        except asyncio.TimeoutError:
+            raise LLMException(f"Gemini request timed out after {timeout}s")
+        except Exception as e:
+            raise LLMException(f"Gemini API error: {str(e)}")
+
+
 class OpenAIProvider(LLMProvider):
     """OpenAI GPT provider"""
     
@@ -40,7 +81,7 @@ class OpenAIProvider(LLMProvider):
                 self.client.chat.completions.create(
                     model=settings.DEFAULT_MODEL,
                     messages=[{"role": "user", "content": prompt}],
-                    temperature=0.1,  # Low temperature for consistency
+                    temperature=0.1,
                     max_tokens=2000
                 ),
                 timeout=timeout
@@ -68,7 +109,7 @@ class GroqProvider(LLMProvider):
         try:
             response = await asyncio.wait_for(
                 self.client.chat.completions.create(
-                    model="mixtral-8x7b-32768",
+                    model=settings.DEFAULT_MODEL,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.1,
                     max_tokens=2000
@@ -93,7 +134,9 @@ class AIService:
         """Get configured LLM provider"""
         provider_name = settings.DEFAULT_LLM_PROVIDER.lower()
         
-        if provider_name == "openai":
+        if provider_name == "gemini":
+            return GeminiProvider()
+        elif provider_name == "openai":
             return OpenAIProvider()
         elif provider_name == "groq":
             return GroqProvider()
@@ -158,7 +201,8 @@ class AIService:
         try:
             provider_name = settings.DEFAULT_LLM_PROVIDER
             has_api_key = bool(
-                settings.OPENAI_API_KEY if provider_name == "openai" 
+                settings.GEMINI_API_KEY if provider_name == "gemini"
+                else settings.OPENAI_API_KEY if provider_name == "openai" 
                 else settings.GROQ_API_KEY if provider_name == "groq"
                 else False
             )
