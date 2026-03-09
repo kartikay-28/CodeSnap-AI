@@ -1,6 +1,9 @@
 // API Configuration
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = 'https://codesnap-ai.onrender.com';
 const ANALYZE_ENDPOINT = `${API_BASE_URL}/api/v1/analyze/code`;
+
+console.log('🔗 API Base URL:', API_BASE_URL);
+console.log('🔗 Analyze Endpoint:', ANALYZE_ENDPOINT);
 
 // DOM Elements
 const uploadBox = document.getElementById('uploadBox');
@@ -96,6 +99,7 @@ async function analyzeCode() {
         return;
     }
 
+    console.log('📤 Starting analysis for file:', selectedFile.name);
     previewSection.style.display = 'none';
     loading.style.display = 'block';
     resultsSection.style.display = 'none';
@@ -105,21 +109,27 @@ async function analyzeCode() {
         const formData = new FormData();
         formData.append('file', selectedFile);
 
+        console.log('🌐 Sending request to:', ANALYZE_ENDPOINT);
         const response = await fetch(ANALYZE_ENDPOINT, {
             method: 'POST',
             body: formData
         });
 
+        console.log('📥 Response status:', response.status, response.statusText);
+
         if (!response.ok) {
             const errorData = await response.json();
+            console.error('❌ Error response:', errorData);
             throw new Error(errorData.detail || 'Analysis failed');
         }
 
         const data = await response.json();
+        console.log('✅ Analysis successful:', data);
         loading.style.display = 'none';
         displayResults(data);
 
     } catch (error) {
+        console.error('💥 Analysis error:', error);
         loading.style.display = 'none';
         showError(error.message || 'Failed to analyze code. Please try again.');
     }
@@ -191,14 +201,20 @@ function showError(message) {
 // Check API health on load
 async function checkAPIHealth() {
     try {
+        console.log('🔍 Checking API health...');
         const response = await fetch(`${API_BASE_URL}/health`);
         if (response.ok) {
-            console.log('✅ API is healthy');
+            const data = await response.json();
+            console.log('✅ API is healthy:', data);
+        } else {
+            console.error('❌ API health check failed:', response.status, response.statusText);
         }
     } catch (error) {
-        console.warn('⚠️ Could not connect to API:', error.message);
+        console.error('⚠️ Could not connect to API:', error.message);
+        console.error('Full error:', error);
     }
 }
 
 // Initialize
+console.log('🚀 Initializing CodeSnap AI...');
 checkAPIHealth();
