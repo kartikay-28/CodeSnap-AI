@@ -2,7 +2,13 @@
 
 AI-powered code analysis from screenshots using EasyOCR and Google Gemini.
 
-## 🎯 Demo
+## 🌐 Live Demo
+
+**🚀 Try it now:**
+- **Frontend:** https://codesnap-ai-28.netlify.app/
+- **Backend API:** https://codesnap-ai.onrender.com
+
+## 🎯 Demo Screenshots
 
 <div align="center">
 
