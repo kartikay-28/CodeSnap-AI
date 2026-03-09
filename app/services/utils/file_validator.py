@@ -1,11 +1,11 @@
 """
 File validation utilities for image uploads
 """
-import magic
 from fastapi import UploadFile
-from typing import Tuple, Optional
+from typing import Tuple
 from PIL import Image
 import io
+import imghdr
 
 from app.core.config import settings
 from app.core.exceptions import (
@@ -41,25 +41,32 @@ class FileValidator:
         # Check file extension
         if file.filename:
             extension = file.filename.lower().split('.')[-1]
-            if extension not in settings.ALLOWED_EXTENSIONS:
+            allowed_exts = settings.allowed_extensions_list
+            if extension not in allowed_exts:
                 raise FileTypeException(
-                    f"File extension '{extension}' not allowed. Allowed: {settings.ALLOWED_EXTENSIONS}"
+                    f"File extension '{extension}' not allowed. Allowed: {', '.join(allowed_exts)}"
                 )
         
-        # Read file content for MIME type detection
+        # Read file content for type detection
         file_content = file.file.read()
         file.file.seek(0)  # Reset file pointer
         
-        # Detect MIME type using python-magic
+        # Detect image type using imghdr
         try:
-            mime_type = magic.from_buffer(file_content, mime=True)
+            image_type = imghdr.what(None, h=file_content)
+            if image_type:
+                mime_type = f"image/{image_type}"
+            else:
+                # Fallback to content type from upload
+                mime_type = file.content_type or "application/octet-stream"
         except Exception:
-            # Fallback to content type from upload
             mime_type = file.content_type or "application/octet-stream"
         
-        if mime_type not in settings.ALLOWED_MIME_TYPES:
+        # Validate MIME type
+        allowed_mimes = settings.allowed_mime_types_list
+        if not any(mime_type.startswith(allowed.split('/')[0]) for allowed in allowed_mimes):
             raise FileTypeException(
-                f"MIME type '{mime_type}' not allowed. Allowed: {settings.ALLOWED_MIME_TYPES}"
+                f"MIME type '{mime_type}' not allowed. Must be an image file."
             )
         
         return mime_type

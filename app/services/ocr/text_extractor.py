@@ -1,44 +1,33 @@
 """
-Text extraction service using Tesseract OCR
+Text extraction service using EasyOCR
 """
-import pytesseract
-import subprocess
+import easyocr
 import time
-from typing import Tuple, Optional, Dict, Any
+from typing import Tuple, Optional, Dict, Any, List
 from PIL import Image
 import io
 import logging
+import numpy as np
 
-from app.core.config import settings
-from app.core.exceptions import TextExtractionException, ConfigurationException
+from app.core.exceptions import TextExtractionException
 
 logger = logging.getLogger(__name__)
 
 
 class TextExtractor:
-    """Handles text extraction from images using Tesseract OCR"""
+    """Handles text extraction from images using EasyOCR"""
     
     def __init__(self):
-        self._validate_tesseract_installation()
-    
-    def _validate_tesseract_installation(self) -> None:
-        """Validate Tesseract is properly installed and accessible"""
+        """Initialize EasyOCR reader"""
         try:
-            # Try to get Tesseract version
-            version = pytesseract.get_tesseract_version()
-            logger.info(f"Tesseract version: {version}")
+            logger.info("Initializing EasyOCR reader...")
+            # Initialize with English language
+            # gpu=False for CPU-only systems, set to True if GPU available
+            self.reader = easyocr.Reader(['en'], gpu=False, verbose=False)
+            logger.info("EasyOCR reader initialized successfully")
         except Exception as e:
-            raise ConfigurationException(
-                f"Tesseract OCR not found or not properly installed: {str(e)}"
-            )
-    
-    def get_tesseract_version(self) -> Optional[str]:
-        """Get Tesseract version string"""
-        try:
-            version = pytesseract.get_tesseract_version()
-            return str(version)
-        except Exception:
-            return None
+            logger.error(f"Failed to initialize EasyOCR: {str(e)}")
+            raise TextExtractionException(f"EasyOCR initialization failed: {str(e)}")
     
     def extract_text_with_confidence(self, image_bytes: bytes, 
                                    config: str = None) -> Tuple[str, float, Dict[str, Any]]:
@@ -47,7 +36,7 @@ class TextExtractor:
         
         Args:
             image_bytes: Image data as bytes
-            config: Custom Tesseract configuration
+            config: Not used for EasyOCR (kept for compatibility)
             
         Returns:
             Tuple of (extracted_text, confidence_score, metadata)
@@ -58,49 +47,48 @@ class TextExtractor:
             # Load image
             image = Image.open(io.BytesIO(image_bytes))
             
-            # Use provided config or default
-            tesseract_config = config or settings.TESSERACT_CONFIG
+            # Convert PIL Image to numpy array for EasyOCR
+            image_np = np.array(image)
             
-            # Extract text with confidence data
-            data = pytesseract.image_to_data(
-                image, 
-                config=tesseract_config,
-                output_type=pytesseract.Output.DICT,
-                timeout=settings.TESSERACT_TIMEOUT
-            )
+            # Extract text with EasyOCR
+            # Returns list of (bbox, text, confidence)
+            results = self.reader.readtext(image_np, detail=1)
             
-            # Extract text
-            extracted_text = pytesseract.image_to_string(
-                image,
-                config=tesseract_config,
-                timeout=settings.TESSERACT_TIMEOUT
-            )
+            # Extract text and confidence
+            extracted_lines = []
+            confidences = []
             
-            # Calculate confidence score
-            confidences = [int(conf) for conf in data['conf'] if int(conf) > 0]
-            avg_confidence = sum(confidences) / len(confidences) if confidences else 0
-            confidence_score = avg_confidence / 100.0  # Convert to 0-1 range
+            for (bbox, text, confidence) in results:
+                if text.strip():
+                    extracted_lines.append(text)
+                    confidences.append(confidence)
+            
+            # Join all text with newlines
+            extracted_text = "\n".join(extracted_lines)
+            
+            # Calculate average confidence
+            avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
             
             processing_time = int((time.time() - start_time) * 1000)
             
             metadata = {
                 'processing_time_ms': processing_time,
-                'word_count': len([word for word in data['text'] if word.strip()]),
+                'word_count': len(extracted_lines),
                 'confidence_distribution': {
-                    'high': len([c for c in confidences if c >= 80]),
-                    'medium': len([c for c in confidences if 50 <= c < 80]),
-                    'low': len([c for c in confidences if c < 50])
+                    'high': len([c for c in confidences if c >= 0.8]),
+                    'medium': len([c for c in confidences if 0.5 <= c < 0.8]),
+                    'low': len([c for c in confidences if c < 0.5])
                 },
-                'tesseract_config': tesseract_config
+                'ocr_engine': 'EasyOCR',
+                'total_detections': len(results)
             }
             
-            return extracted_text.strip(), confidence_score, metadata
+            logger.info(f"Text extraction completed in {processing_time}ms with confidence {avg_confidence:.2f}")
             
-        except subprocess.TimeoutExpired:
-            raise TextExtractionException(
-                f"OCR processing timed out after {settings.TESSERACT_TIMEOUT} seconds"
-            )
+            return extracted_text.strip(), avg_confidence, metadata
+            
         except Exception as e:
+            logger.error(f"Text extraction failed: {str(e)}")
             raise TextExtractionException(f"Text extraction failed: {str(e)}")
     
     def extract_text_simple(self, image_bytes: bytes, config: str = None) -> str:
@@ -109,66 +97,75 @@ class TextExtractor:
         
         Args:
             image_bytes: Image data as bytes
-            config: Custom Tesseract configuration
+            config: Not used for EasyOCR (kept for compatibility)
             
         Returns:
             Extracted text string
         """
         try:
+            # Load image
             image = Image.open(io.BytesIO(image_bytes))
-            tesseract_config = config or settings.TESSERACT_CONFIG
+            image_np = np.array(image)
             
-            text = pytesseract.image_to_string(
-                image,
-                config=tesseract_config,
-                timeout=settings.TESSERACT_TIMEOUT
-            )
+            # Extract text (detail=0 returns only text, no bbox or confidence)
+            results = self.reader.readtext(image_np, detail=0)
+            
+            # Join all text with newlines
+            text = "\n".join(results)
             
             return text.strip()
             
-        except subprocess.TimeoutExpired:
-            raise TextExtractionException(
-                f"OCR processing timed out after {settings.TESSERACT_TIMEOUT} seconds"
-            )
         except Exception as e:
+            logger.error(f"Simple text extraction failed: {str(e)}")
             raise TextExtractionException(f"Text extraction failed: {str(e)}")
     
     def extract_with_language_hint(self, image_bytes: bytes, 
-                                 language: str = 'eng') -> Tuple[str, float]:
+                                 language: str = 'en') -> Tuple[str, float]:
         """
         Extract text with specific language configuration
         
         Args:
             image_bytes: Image data as bytes
-            language: Tesseract language code (e.g., 'eng', 'fra', 'deu')
+            language: Language code (e.g., 'en', 'fr', 'de')
             
         Returns:
             Tuple of (extracted_text, confidence_score)
         """
         try:
-            # Create language-specific config
-            config = f"{settings.TESSERACT_CONFIG} -l {language}"
-            
-            text, confidence, _ = self.extract_text_with_confidence(image_bytes, config)
+            # For language-specific extraction, we'd need to reinitialize reader
+            # For now, use default English reader
+            text, confidence, _ = self.extract_text_with_confidence(image_bytes)
             return text, confidence
             
         except Exception as e:
             raise TextExtractionException(f"Language-specific extraction failed: {str(e)}")
     
-    def get_available_languages(self) -> list:
-        """Get list of available Tesseract languages"""
+    def get_available_languages(self) -> List[str]:
+        """Get list of available EasyOCR languages"""
         try:
-            languages = pytesseract.get_languages()
-            return languages
+            # EasyOCR supports many languages
+            # Return commonly used ones for code
+            return ['en', 'ch_sim', 'ch_tra', 'ja', 'ko', 'fr', 'de', 'es', 'pt', 'ru']
         except Exception as e:
             logger.warning(f"Could not get available languages: {str(e)}")
-            return ['eng']  # Default fallback
+            return ['en']  # Default fallback
     
     def health_check(self) -> Dict[str, Any]:
-        """Perform health check on Tesseract service"""
+        """Perform health check on EasyOCR service"""
         try:
             # Test with a simple image
-            test_image = Image.new('RGB', (100, 50), color='white')
+            test_image = Image.new('RGB', (200, 100), color='white')
+            from PIL import ImageDraw, ImageFont
+            draw = ImageDraw.Draw(test_image)
+            
+            # Draw some test text
+            try:
+                font = ImageFont.load_default()
+            except:
+                font = None
+            
+            draw.text((10, 40), "Test OCR", fill='black', font=font)
+            
             test_bytes = io.BytesIO()
             test_image.save(test_bytes, format='PNG')
             test_bytes = test_bytes.getvalue()
@@ -180,16 +177,18 @@ class TextExtractor:
             
             return {
                 'status': 'healthy',
-                'version': self.get_tesseract_version(),
+                'ocr_engine': 'EasyOCR',
                 'available_languages': self.get_available_languages(),
                 'response_time_ms': response_time,
-                'test_extraction_successful': True
+                'test_extraction_successful': True,
+                'test_result': text
             }
             
         except Exception as e:
+            logger.error(f"Health check failed: {str(e)}")
             return {
                 'status': 'unhealthy',
                 'error': str(e),
-                'version': self.get_tesseract_version(),
+                'ocr_engine': 'EasyOCR',
                 'test_extraction_successful': False
             }

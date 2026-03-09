@@ -8,15 +8,15 @@ class Settings(BaseSettings):
     # LLM Configuration
     OPENAI_API_KEY: str = ""
     GROQ_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     
-    DEFAULT_LLM_PROVIDER: str = "openai"
-    DEFAULT_MODEL: str = "gpt-3.5-turbo"
+    DEFAULT_LLM_PROVIDER: str = "gemini"
+    DEFAULT_MODEL: str = "gemini-2.0-flash-exp"
     
-    # OCR Configuration
-    TESSERACT_PATH: str = "/usr/bin/tesseract"
-    TESSERACT_CONFIG: str = "--oem 3 --psm 6"
-    TESSERACT_TIMEOUT: int = 30
+    # OCR Configuration (EasyOCR)
+    OCR_LANGUAGES: str = "en"  # Comma-separated list
+    OCR_GPU: bool = False  # Set to True if GPU available
     
     # Image Processing Settings
     IMAGE_DPI: int = 300
@@ -31,9 +31,19 @@ class Settings(BaseSettings):
     
     # File Upload Configuration
     MAX_FILE_SIZE_MB: int = 10
-    MAX_FILE_SIZE_BYTES: int = MAX_FILE_SIZE_MB * 1024 * 1024
-    ALLOWED_EXTENSIONS: List[str] = ["png", "jpg", "jpeg", "bmp", "tiff"]
-    ALLOWED_MIME_TYPES: List[str] = ["image/png", "image/jpeg", "image/jpg", "image/bmp", "image/tiff"]
+    MAX_FILE_SIZE_BYTES: int = 10 * 1024 * 1024
+    ALLOWED_EXTENSIONS: str = "png,jpg,jpeg,bmp,tiff"  # Comma-separated
+    ALLOWED_MIME_TYPES: str = "image/png,image/jpeg,image/jpg,image/bmp,image/tiff"  # Comma-separated
+    
+    @property
+    def allowed_extensions_list(self) -> List[str]:
+        """Get allowed extensions as a list"""
+        return [ext.strip() for ext in self.ALLOWED_EXTENSIONS.split(",")]
+    
+    @property
+    def allowed_mime_types_list(self) -> List[str]:
+        """Get allowed MIME types as a list"""
+        return [mime.strip() for mime in self.ALLOWED_MIME_TYPES.split(",")]
     
     class Config:
         env_file = ".env"
