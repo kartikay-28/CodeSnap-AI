@@ -1,67 +1,16 @@
 """
 CodeSnap AI - Main FastAPI Application
-Production-ready backend with CORS, health checks, and keep-alive
+Production-ready backend with CORS and health checks
 """
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.v1.router import api_router
 import logging
-import asyncio
-import httpx
-from contextlib import asynccontextmanager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Keep-alive task reference
-keep_alive_task = None
-
-
-async def keep_alive_ping():
-    """Background task to ping health endpoint every 10 minutes to keep Render instance active"""
-    await asyncio.sleep(60)  # Wait 1 minute before starting
-    
-    async with httpx.AsyncClient() as client:
-        while True:
-            try:
-                # Ping own health endpoint
-                response = await client.get("http://localhost:8000/health", timeout=5.0)
-                if response.status_code == 200:
-                    logger.info("✅ Keep-alive ping successful")
-                else:
-                    logger.warning(f"⚠️ Keep-alive ping returned status {response.status_code}")
-            except Exception as e:
-                logger.error(f"❌ Keep-alive ping failed: {str(e)}")
-            
-            # Wait 10 minutes before next ping
-            await asyncio.sleep(600)
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Lifespan context manager for startup and shutdown events"""
-    # Startup
-    logger.info("🚀 CodeSnap AI is starting up...")
-    logger.info(f"📍 Environment: {'Development' if settings.DEBUG else 'Production'}")
-    logger.info(f"🤖 LLM Provider: {settings.DEFAULT_LLM_PROVIDER}")
-    
-    # Start keep-alive background task
-    global keep_alive_task
-    keep_alive_task = asyncio.create_task(keep_alive_ping())
-    logger.info("⏰ Keep-alive task started (10-minute interval)")
-    
-    yield
-    
-    # Shutdown
-    logger.info("🛑 CodeSnap AI is shutting down...")
-    if keep_alive_task:
-        keep_alive_task.cancel()
-        try:
-            await keep_alive_task
-        except asyncio.CancelledError:
-            logger.info("✅ Keep-alive task cancelled")
 
 
 def create_app() -> FastAPI:
@@ -71,20 +20,35 @@ def create_app() -> FastAPI:
         description="AI-powered code analysis from screenshots",
         version="1.0.0",
         docs_url="/docs",
-        redoc_url="/redoc",
-        lifespan=lifespan
+        redoc_url="/redoc"
     )
     
-    # CORS middleware - MUST be added before routes
-    # Allow all origins for maximum compatibility
+    # CORS middleware - MUST be added FIRST before any routes
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # Allow all origins
-        allow_credentials=False,  # Must be False when allow_origins is ["*"]
-        allow_methods=["*"],
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
         allow_headers=["*"],
-        expose_headers=["*"]
+        expose_headers=["*"],
+        max_age=3600
     )
+    
+    @app.middleware("http")
+    async def add_cors_headers(request: Request, call_next):
+        """Add CORS headers to all responses"""
+        response = await call_next(request)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+    
+    @app.on_event("startup")
+    async def startup_event():
+        logger.info("🚀 CodeSnap AI is starting up...")
+        logger.info(f"📍 Environment: {'Development' if settings.DEBUG else 'Production'}")
+        logger.info(f"🤖 LLM Provider: {settings.DEFAULT_LLM_PROVIDER}")
+        logger.info("✅ CORS enabled for all origins")
     
     # Root endpoint
     @app.get("/")
@@ -103,7 +67,7 @@ def create_app() -> FastAPI:
     @app.get("/health")
     @app.head("/health")
     async def health_check():
-        """Health check endpoint for monitoring and keep-alive"""
+        """Health check endpoint for monitoring"""
         return {
             "status": "healthy",
             "service": "CodeSnap AI"
@@ -115,7 +79,7 @@ def create_app() -> FastAPI:
         """Return empty response for favicon to prevent 404 logs"""
         return Response(content="", media_type="image/x-icon")
     
-    # Include API routes
+    # Include API routes AFTER middleware
     app.include_router(api_router, prefix="/api/v1")
     
     return app
