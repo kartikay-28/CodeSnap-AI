@@ -76,19 +76,14 @@ def create_app() -> FastAPI:
     )
     
     # CORS middleware - MUST be added before routes
+    # Allow all origins for maximum compatibility
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "https://codesnap-ai-28.netlify.app",  # Production frontend
-            "http://localhost:3000",                # Local development
-            "http://localhost:5500",                # Live Server
-            "http://127.0.0.1:3000",               # Local development
-            "http://127.0.0.1:5500",               # Live Server
-            "*"                                     # Allow all during development
-        ],
-        allow_credentials=True,
+        allow_origins=["*"],  # Allow all origins
+        allow_credentials=False,  # Must be False when allow_origins is ["*"]
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["*"]
     )
     
     # Root endpoint
